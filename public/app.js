@@ -15,6 +15,7 @@ const els = {
 };
 
 let domain = "";
+let prefix = "inbox";
 let activeId = null;
 let autoTimer = null;
 
@@ -49,7 +50,7 @@ async function api(path, opts) {
 function updateHint() {
   const project = els.project.value.trim().toLowerCase();
   if (project && domain) {
-    els.hint.innerHTML = `Send test mail to <code>${escapeHtml(project)}-anything-dev@${escapeHtml(domain)}</code>`;
+    els.hint.innerHTML = `Send test mail to <code>${escapeHtml(prefix)}+${escapeHtml(project)}-anything@${escapeHtml(domain)}</code> (the <code>-anything</code> can be any unique run id)`;
   } else {
     els.hint.innerHTML = "";
   }
@@ -192,6 +193,7 @@ async function boot() {
   try {
     const cfg = await (await fetch("/api/v1/config")).json();
     domain = cfg.domain || "";
+    prefix = cfg.prefix || "inbox";
   } catch {
     /* ignore */
   }

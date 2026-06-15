@@ -6,6 +6,8 @@ export interface Env {
   ASSETS: Fetcher;
   /** The mail domain, e.g. "mail.example.com". Shown in the GUI as example addresses. */
   MAIL_DOMAIN: string;
+  /** The base local part of the single Email Routing rule, e.g. "inbox". Display only. */
+  MAIL_PREFIX?: string;
   /** How long messages live before KV auto-deletes them, in seconds (string var). */
   RETENTION_SECONDS?: string;
   /** Secret. HMAC key used to derive per-project access tokens. */

@@ -1,13 +1,24 @@
 /** Shared helpers for address parsing, validation, and code extraction. */
 
 const PROJECT_RE = /^[a-z0-9]{1,40}$/;
-/** Local part must be `<project>-<anything>-dev`; `<project>` is the leading token. */
-const ADDRESS_RE = /^([a-z0-9]{1,40})-(?:.+-)?dev$/;
+/**
+ * Project is the leading [a-z0-9] token of the subaddress detail, optionally
+ * followed by `-`/`+`/`.` and arbitrary uniqueness text.
+ */
+const DETAIL_RE = /^([a-z0-9]{1,40})(?:[-+.].*)?$/;
 
-/** Extract the project folder from a recipient address, or null if it doesn't match. */
+/**
+ * Extract the project from a recipient address, or null if it isn't a project
+ * mailbox. Routing uses subaddressing: mail arrives at `<base>+<project>[-<run>]@`
+ * via a single Email Routing rule for `<base>@`, and Cloudflare preserves the
+ * `+detail` in the recipient. The base label is ignored; the project comes from
+ * the part after the first `+`.
+ */
 export function projectFromAddress(address: string): string | null {
   const local = (address.split("@")[0] || "").toLowerCase().trim();
-  const match = local.match(ADDRESS_RE);
+  const plus = local.indexOf("+");
+  if (plus === -1) return null; // no subaddress -> not a project mailbox
+  const match = local.slice(plus + 1).match(DETAIL_RE);
   return match ? match[1] : null;
 }
 

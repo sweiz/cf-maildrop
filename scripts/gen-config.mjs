@@ -27,6 +27,7 @@ const get = (key, fallback) => process.env[key] ?? devVars[key] ?? fallback;
 const replacements = {
   __KV_NAMESPACE_ID__: get("KV_NAMESPACE_ID", ""),
   __MAIL_DOMAIN__: get("MAIL_DOMAIN", "example.com"),
+  __MAIL_PREFIX__: get("MAIL_PREFIX", "inbox"),
   __RETENTION_SECONDS__: get("RETENTION_SECONDS", "86400"),
 };
 

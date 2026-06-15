@@ -5,10 +5,18 @@
 ## Goal
 
 A disposable dev email inbox on Cloudflare. Mail to
-`‹project›-‹anything›-dev@‹domain›` is captured per-project, readable via a
+`‹prefix›+‹project›-‹run-id›@‹domain›` is captured per-project, readable via a
 token-protected REST API and a basic web GUI, auto-expiring after ~24h, all within
 the Cloudflare free tier. The repo must be safe as a public GitHub repo, deploying
 to the owner's Cloudflare account via private GitHub Actions secrets/variables.
+
+**Routing (revised 2026-06-16):** rather than a catch-all, a single custom-address
+rule (`‹prefix›@‹domain›` → Worker) plus Cloudflare **subaddressing** handles every
+project: `‹prefix›+‹project›-‹run-id›@` is matched by the one rule and the `+detail`
+is preserved in `message.to`. This never claims the catch-all, so it coexists with
+existing email routing on the domain. The Worker needs no Cloudflare API token — the
+subaddressing-only model was chosen over a runtime "create routing rule" API
+specifically to avoid storing a zone-scoped credential in an internet-facing Worker.
 
 ## Architecture
 

@@ -20,6 +20,7 @@
   ],
   "vars": {
     "MAIL_DOMAIN": "__MAIL_DOMAIN__",
+    "MAIL_PREFIX": "__MAIL_PREFIX__",
     "RETENTION_SECONDS": "__RETENTION_SECONDS__"
   }
   // TOKEN_SALT is a secret, NOT a var. Set it with `wrangler secret put TOKEN_SALT`

@@ -12,5 +12,10 @@ KV_NAMESPACE_ID=
 # The mail domain (only affects example addresses shown in the GUI during dev).
 MAIL_DOMAIN=example.com
 
+# The base local part of your single Email Routing rule. Addresses are then
+# <MAIL_PREFIX>+<project>-<run-id>@<MAIL_DOMAIN>. Display only; the Worker reads the
+# project from the part after "+", so this just needs to match the rule you create.
+MAIL_PREFIX=inbox
+
 # Optional: message retention in seconds (default 86400 = 24h, min 60, max 604800).
 RETENTION_SECONDS=86400

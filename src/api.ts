@@ -28,7 +28,12 @@ export async function handleApi(request: Request, env: Env, url: URL): Promise<R
 
   // /api/v1/config  -> public config for the GUI (no auth; domain is not secret).
   if (url.pathname === "/api/v1/config") {
-    return json({ domain: env.MAIL_DOMAIN, addressFormat: "<project>-<anything>-dev" });
+    const prefix = env.MAIL_PREFIX || "inbox";
+    return json({
+      domain: env.MAIL_DOMAIN,
+      prefix,
+      addressFormat: `${prefix}+<project>-<run-id>`,
+    });
   }
 
   // /api/v1/<project>/<action>[/<id>]

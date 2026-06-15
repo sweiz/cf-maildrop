@@ -30,8 +30,8 @@ export interface ForwardableEmailMessage {
 export async function handleEmail(message: ForwardableEmailMessage, env: Env): Promise<void> {
   const project = projectFromAddress(message.to);
   if (!project) {
-    // Not addressed to a `<project>-...-dev@` mailbox — accept silently and drop
-    // so the catch-all doesn't generate bounces for stray mail.
+    // No `+<project>` subaddress (e.g. bare `inbox@`) — accept silently and drop
+    // so we don't generate bounces for stray mail.
     console.log(`maildrop: ignoring non-matching recipient ${message.to}`);
     return;
   }
