@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>cf-maildrop</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>📮</text></svg>" />
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>📮 cf-maildrop</h1>
+      <div class="controls">
+        <input id="project" placeholder="project" autocomplete="off" spellcheck="false" />
+        <input id="token" type="password" placeholder="token" autocomplete="off" spellcheck="false" />
+        <button id="load">Load</button>
+        <label class="auto"><input type="checkbox" id="auto" /> auto</label>
+        <button id="clear" class="danger" title="Delete all messages for this project">Clear</button>
+      </div>
+    </header>
+
+    <p id="hint" class="hint"></p>
+
+    <main>
+      <section id="list" aria-label="messages">
+        <p class="empty">Enter a project and token, then Load.</p>
+      </section>
+      <section id="view" aria-label="message">
+        <p class="empty">Select a message.</p>
+      </section>
+    </main>
+
+    <footer>
+      <span id="status"></span>
+      <span class="spacer"></span>
+      <a href="https://github.com/" id="repolink" target="_blank" rel="noopener">about</a>
+    </footer>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

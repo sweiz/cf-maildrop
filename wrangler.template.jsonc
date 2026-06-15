@@ -1,0 +1,27 @@
+{
+  // This file is a TEMPLATE. `npm run config` (scripts/gen-config.mjs) substitutes
+  // the __PLACEHOLDER__ values from environment variables and writes wrangler.jsonc
+  // (which is gitignored). Both local `npm run dev/deploy` and CI use that step.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "cf-maildrop",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-06-01",
+  "observability": { "enabled": true },
+  "assets": {
+    "directory": "./public/",
+    "binding": "ASSETS",
+    // Run the Worker only for API routes; everything else is served as a static
+    // asset (the web GUI in ./public). Email handling is a separate export and is
+    // unaffected by HTTP routing.
+    "run_worker_first": ["/api/*"]
+  },
+  "kv_namespaces": [
+    { "binding": "MAIL", "id": "__KV_NAMESPACE_ID__" }
+  ],
+  "vars": {
+    "MAIL_DOMAIN": "__MAIL_DOMAIN__",
+    "RETENTION_SECONDS": "__RETENTION_SECONDS__"
+  }
+  // TOKEN_SALT is a secret, NOT a var. Set it with `wrangler secret put TOKEN_SALT`
+  // (locally, put it in .dev.vars). CI uploads it via the wrangler-action `secrets` input.
+}

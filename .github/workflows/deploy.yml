@@ -1,0 +1,45 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Build wrangler.jsonc from the template using repo-level config.
+      # Set these as GitHub Actions *Variables* (Settings -> Secrets and variables -> Actions -> Variables):
+      #   KV_NAMESPACE_ID   (from `wrangler kv namespace create MAIL`)
+      #   MAIL_DOMAIN       (e.g. mail.example.com)
+      #   RETENTION_SECONDS (optional; defaults to 86400)
+      - name: Generate wrangler.jsonc
+        run: npm run config
+        env:
+          KV_NAMESPACE_ID: ${{ vars.KV_NAMESPACE_ID }}
+          MAIL_DOMAIN: ${{ vars.MAIL_DOMAIN }}
+          RETENTION_SECONDS: ${{ vars.RETENTION_SECONDS }}
+
+      # Deploy, then upload the TOKEN_SALT secret. These are GitHub Actions *Secrets*:
+      #   CLOUDFLARE_API_TOKEN  (token with Workers Scripts:Edit + Workers KV:Edit)
+      #   CLOUDFLARE_ACCOUNT_ID
+      #   TOKEN_SALT
+      - name: Deploy Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          secrets: |
+            TOKEN_SALT
+        env:
+          TOKEN_SALT: ${{ secrets.TOKEN_SALT }}

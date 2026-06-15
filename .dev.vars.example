@@ -1,0 +1,16 @@
+# Copy to `.dev.vars` for local development (`npm run dev`). Never commit .dev.vars.
+# .dev.vars supplies the TOKEN_SALT secret to `wrangler dev`, and is also read by
+# scripts/gen-config.mjs and scripts/token.mjs as a fallback for the values below.
+
+# Secret: HMAC key for deriving per-project access tokens. Use a long random value.
+TOKEN_SALT=change-me-to-a-long-random-string
+
+# KV namespace id for local dev. Create one with:
+#   npx wrangler kv namespace create MAIL
+KV_NAMESPACE_ID=
+
+# The mail domain (only affects example addresses shown in the GUI during dev).
+MAIL_DOMAIN=example.com
+
+# Optional: message retention in seconds (default 86400 = 24h, min 60, max 604800).
+RETENTION_SECONDS=86400

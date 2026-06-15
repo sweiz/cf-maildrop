@@ -1,0 +1,9 @@
+node_modules/
+# Generated from wrangler.template.jsonc by scripts/gen-config.mjs — never commit.
+wrangler.jsonc
+# Local secrets (TOKEN_SALT, optional KV_NAMESPACE_ID / MAIL_DOMAIN overrides).
+.dev.vars
+.wrangler/
+dist/
+*.log
+.DS_Store
