@@ -86,6 +86,38 @@ Visit the Worker's root URL. Enter a project + token (saved per-project in
 in a sandboxed iframe), one-click copy of detected codes, auto-refresh, delete, and
 clear-all. Deep-link a project with `#project` in the URL.
 
+## Test client
+
+`client/maildrop.ts` is a single, zero-dependency file (Node 18+ or browser — uses
+global `fetch` + Web Crypto). Copy it into your test suite to fetch emails:
+
+```ts
+import { createMaildrop } from "./maildrop";
+
+const mail = createMaildrop({
+  baseUrl: "https://cf-maildrop.<sub>.workers.dev",
+  domain:  "mail.example.com",
+  salt:    process.env.MAILDROP_SALT!,   // OR token: process.env.MAILDROP_TOKEN
+});
+
+test("sign-in OTP", async () => {
+  const to = mail.address("acme");                 // inbox+acme-<unique>@mail.example.com
+  await app.requestSignInEmail(to);                // drive your app
+  const msg  = await mail.waitFor("acme", { to }); // polls until it arrives (default 30s)
+  const code = mail.extractCode(msg);              // "123456", or null
+  // const link = mail.extractLink(msg);           // first https URL (magic link)
+});
+```
+
+- **`address(project, runId?)`** builds a unique recipient so parallel tests sharing a
+  project don't read each other's mail; **`waitFor(project, { to })`** filters on it.
+- **Auth:** pass `salt` (the Worker's `TOKEN_SALT`) to derive tokens for any project,
+  or a precomputed `token` from `npm run token <project>` to keep the salt out of tests.
+  Inject either from a CI/test secret — never commit it.
+- Other methods: `list`, `get`, `clear`, `remove`, `token`, plus `extractCode` /
+  `extractLink`. `waitFor` also takes `since`, `subjectIncludes`, `match`, `timeoutMs`,
+  `intervalMs`.
+
 ---
 
 ## Setup
