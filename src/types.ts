@@ -1,4 +1,4 @@
-/** Bindings and vars available to the Worker. Mirrors wrangler.template.jsonc. */
+/** Bindings and vars available to the Worker. Mirrors wrangler.jsonc. */
 export interface Env {
   /** KV namespace holding stored messages, keyed `msg:<project>:<id>`. */
   MAIL: KVNamespace;

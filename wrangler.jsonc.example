@@ -1,0 +1,31 @@
+{
+  // Copy this to `wrangler.jsonc` and fill in the two values marked below:
+  //   cp wrangler.jsonc.example wrangler.jsonc
+  // `wrangler.jsonc` is gitignored, so your real values stay out of the public repo.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "cf-maildrop",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-06-01",
+  "observability": { "enabled": true },
+  "assets": {
+    "directory": "./public/",
+    "binding": "ASSETS",
+    // Run the Worker only for API routes; everything else is served as a static
+    // asset (the web GUI in ./public). Email handling is a separate export and is
+    // unaffected by HTTP routing.
+    "run_worker_first": ["/api/*"]
+  },
+  "kv_namespaces": [
+    // FILL IN: id from `npx wrangler kv namespace create MAIL`
+    { "binding": "MAIL", "id": "REPLACE_WITH_YOUR_KV_NAMESPACE_ID" }
+  ],
+  "vars": {
+    // FILL IN: your mail domain. MAIL_PREFIX is the base local part of your single
+    // Email Routing rule (e.g. inbox@<MAIL_DOMAIN>). RETENTION_SECONDS is optional.
+    "MAIL_DOMAIN": "mail.example.com",
+    "MAIL_PREFIX": "inbox",
+    "RETENTION_SECONDS": "86400"
+  }
+  // TOKEN_SALT is a secret, NOT a var. Set it on the deployed Worker with
+  // `npx wrangler secret put TOKEN_SALT`, and put it in .dev.vars for local dev.
+}

@@ -7,8 +7,9 @@ can read over a token-protected REST API or a tiny web GUI. Because it uses one
 ordinary address rule (not the catch-all), it **coexists with your existing email
 routing** and never overrides it. Messages auto-expire after ~24h. The whole thing
 is designed to sit comfortably **inside Cloudflare's free tier**, and the repo is
-safe to make **public** — all deploy config lives in GitHub Actions
-secrets/variables, not in the code.
+safe to make **public** — you deploy from your own machine with `wrangler login`
+(OAuth), so there's no API token or CI secret anywhere, and your config
+(`wrangler.jsonc`) is gitignored.
 
 Great for grabbing OTPs / magic links in end-to-end tests without a real mailbox.
 
@@ -102,32 +103,32 @@ clear-all. Deep-link a project with `#project` in the URL.
   npx wrangler kv namespace create MAIL
   ```
 
-- Create an API token (My Profile → API Tokens) with **Workers Scripts: Edit** and
-  **Workers KV Storage: Edit**, and grab your **Account ID**.
+No API token is needed — you'll authenticate with `wrangler login` (OAuth) in step 3.
 
-### 2. GitHub config (public repo friendly)
+### 2. Configure the project
 
-In the repo's **Settings → Secrets and variables → Actions**:
+```bash
+npm install
+cp wrangler.jsonc.example wrangler.jsonc   # then edit: set the KV namespace id + MAIL_DOMAIN
+cp .dev.vars.example .dev.vars             # then edit: set TOKEN_SALT (openssl rand -hex 32)
+```
 
-**Secrets**
-| Name                   | Value                                            |
-| ---------------------- | ------------------------------------------------ |
-| `CLOUDFLARE_API_TOKEN` | the API token from step 1                        |
-| `CLOUDFLARE_ACCOUNT_ID`| your account id                                  |
-| `TOKEN_SALT`           | a long random string (e.g. `openssl rand -hex 32`) |
+Both `wrangler.jsonc` and `.dev.vars` are gitignored, so your real values never enter
+the public repo. `MAIL_PREFIX` in `wrangler.jsonc` is the base local part of your
+routing rule (default `inbox`).
 
-**Variables**
-| Name                | Value                                                |
-| ------------------- | ---------------------------------------------------- |
-| `KV_NAMESPACE_ID`   | id from `wrangler kv namespace create`               |
-| `MAIL_DOMAIN`       | e.g. `mail.example.com`                              |
-| `MAIL_PREFIX`       | base local part of your rule (default `inbox`)       |
-| `RETENTION_SECONDS` | *(optional)* default `86400` (24h)                   |
+### 3. Deploy (from your machine — no CI, no API token)
 
-Push to `main` → the `Deploy` workflow generates `wrangler.jsonc` from the template,
-deploys the Worker, and uploads `TOKEN_SALT`.
+```bash
+npx wrangler login                  # one-time browser OAuth
+npm run deploy                      # wrangler deploy
+npx wrangler secret put TOKEN_SALT  # one-time: paste the SAME salt as in .dev.vars
+```
 
-### 3. Route mail to the Worker (no catch-all)
+The secret persists across future deploys, so after this it's just `npm run deploy`
+whenever you change something.
+
+### 4. Route mail to the Worker (no catch-all)
 
 In Cloudflare → your domain → **Email → Email Routing → Routing rules**, add a
 **custom address** rule:
@@ -139,10 +140,10 @@ That's the only rule needed. Subaddressing (enabled in step 1) means every
 `inbox+‹project›-‹run-id›@yourdomain` is matched by this one rule, so you never touch
 the **catch-all** and any existing email routing on the domain keeps working.
 
-### 4. Use it
+### 5. Use it
 
 ```bash
-TOKEN=$(TOKEN_SALT=… npm run --silent token acme)
+TOKEN=$(npm run --silent token acme)   # reads TOKEN_SALT from .dev.vars
 # send something to inbox+acme-run42@mail.example.com, then:
 curl "https://cf-maildrop.<your-subdomain>.workers.dev/api/v1/acme/list?token=$TOKEN"
 ```
@@ -150,9 +151,7 @@ curl "https://cf-maildrop.<your-subdomain>.workers.dev/api/v1/acme/list?token=$T
 ## Local development
 
 ```bash
-npm install
-cp .dev.vars.example .dev.vars     # set TOKEN_SALT, KV_NAMESPACE_ID, MAIL_DOMAIN
-npm run dev                        # generates wrangler.jsonc, starts wrangler dev
+npm run dev    # wrangler dev (reads wrangler.jsonc + TOKEN_SALT from .dev.vars)
 ```
 
 `wrangler dev` won't receive real email, but you can exercise the API/GUI by
@@ -163,8 +162,7 @@ npx wrangler kv key put --binding MAIL "msg:acme:000-test" \
   '{"id":"000-test","from":"a@b.com","to":"inbox+acme-run42@x","subject":"hi","receivedAt":"2026-01-01T00:00:00Z","size":1,"hasText":true,"hasHtml":false,"attachments":0,"codes":["123456"],"text":"code 123456","html":"","headers":{},"attachmentList":[]}'
 ```
 
-Other scripts: `npm run typecheck`, `npm run config` (regenerate `wrangler.jsonc`),
-`npm run deploy` (deploy from your machine).
+Other scripts: `npm run typecheck`, `npm run deploy` (deploy from your machine).
 
 ## Free-tier notes
 

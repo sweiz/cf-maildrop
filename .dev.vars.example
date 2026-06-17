@@ -1,21 +1,9 @@
-# Copy to `.dev.vars` for local development (`npm run dev`). Never commit .dev.vars.
-# .dev.vars supplies the TOKEN_SALT secret to `wrangler dev`, and is also read by
-# scripts/gen-config.mjs and scripts/token.mjs as a fallback for the values below.
+# Copy to `.dev.vars` for local development. Never commit .dev.vars.
+# .dev.vars supplies the TOKEN_SALT secret to `wrangler dev`, and is read by
+# `npm run token` to compute project tokens. (The KV id / domain / prefix live in
+# wrangler.jsonc, copied from wrangler.jsonc.example — not here.)
 
-# Secret: HMAC key for deriving per-project access tokens. Use a long random value.
+# Secret: HMAC key for deriving per-project access tokens. Use a long random value
+# (e.g. `openssl rand -hex 32`). Must match the value you set on the deployed Worker
+# with `npx wrangler secret put TOKEN_SALT`.
 TOKEN_SALT=change-me-to-a-long-random-string
-
-# KV namespace id for local dev. Create one with:
-#   npx wrangler kv namespace create MAIL
-KV_NAMESPACE_ID=
-
-# The mail domain (only affects example addresses shown in the GUI during dev).
-MAIL_DOMAIN=example.com
-
-# The base local part of your single Email Routing rule. Addresses are then
-# <MAIL_PREFIX>+<project>-<run-id>@<MAIL_DOMAIN>. Display only; the Worker reads the
-# project from the part after "+", so this just needs to match the rule you create.
-MAIL_PREFIX=inbox
-
-# Optional: message retention in seconds (default 86400 = 24h, min 60, max 604800).
-RETENTION_SECONDS=86400

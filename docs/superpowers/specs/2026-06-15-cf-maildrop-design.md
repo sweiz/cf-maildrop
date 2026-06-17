@@ -7,8 +7,9 @@
 A disposable dev email inbox on Cloudflare. Mail to
 `‹prefix›+‹project›-‹run-id›@‹domain›` is captured per-project, readable via a
 token-protected REST API and a basic web GUI, auto-expiring after ~24h, all within
-the Cloudflare free tier. The repo must be safe as a public GitHub repo, deploying
-to the owner's Cloudflare account via private GitHub Actions secrets/variables.
+the Cloudflare free tier. The repo must be safe as a public GitHub repo; it deploys
+locally via `wrangler login` (OAuth) with no API token or CI secrets, and the only
+secret (`TOKEN_SALT`) plus the real config stay gitignored.
 
 **Routing (revised 2026-06-16):** rather than a catch-all, a single custom-address
 rule (`‹prefix›@‹domain›` → Worker) plus Cloudflare **subaddressing** handles every
@@ -49,11 +50,13 @@ and `src/token.ts` compute identically (Node `digest('base64url')` ↔ Web Crypt
 
 ### Config flow (public-repo safe)
 
-`wrangler.template.jsonc` holds `__PLACEHOLDER__`s. `scripts/gen-config.mjs`
-substitutes from env (CI) or `.dev.vars` (local) and writes the gitignored
-`wrangler.jsonc`. CI passes `KV_NAMESPACE_ID`/`MAIL_DOMAIN` as GitHub *Variables*;
-`CLOUDFLARE_API_TOKEN`/`CLOUDFLARE_ACCOUNT_ID`/`TOKEN_SALT` as *Secrets*
-(`TOKEN_SALT` uploaded by wrangler-action). Nothing sensitive is committed.
+**Deploy (revised 2026-06-17):** deploy is local-only via `wrangler login` (OAuth) —
+no GitHub Actions, no Cloudflare API token, no CI secrets. `wrangler.jsonc.example`
+is committed; the user copies it to the gitignored `wrangler.jsonc` and fills in the
+KV namespace id + `MAIL_DOMAIN` (neither is secret, but keeping them gitignored
+avoids putting anything real in the public repo). `TOKEN_SALT` is the only secret:
+set on the Worker with `wrangler secret put`, and kept in the gitignored `.dev.vars`
+for `wrangler dev` + the token CLI. Nothing sensitive is committed.
 
 ## Components
 
@@ -66,9 +69,8 @@ substitutes from env (CI) or `.dev.vars` (local) and writes the gitignored
 | `src/token.ts`        | HMAC token compute/verify                       |
 | `src/util.ts`         | Address parsing, validation, code extraction    |
 | `public/*`            | Static web GUI (no build step)                  |
-| `scripts/gen-config`  | Template → wrangler.jsonc                        |
 | `scripts/token`       | CLI to print a project token                     |
-| `.github/workflows`   | Deploy on push to main                          |
+| `wrangler.jsonc.example` | Committed config template (copy → wrangler.jsonc) |
 
 ## API
 

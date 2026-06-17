@@ -1,7 +1,8 @@
 node_modules/
-# Generated from wrangler.template.jsonc by scripts/gen-config.mjs — never commit.
+# Your real config (KV id, domain) — copy from wrangler.jsonc.example. Gitignored so
+# nothing real lands in the public repo.
 wrangler.jsonc
-# Local secrets (TOKEN_SALT, optional KV_NAMESPACE_ID / MAIL_DOMAIN overrides).
+# Local secret (TOKEN_SALT) for `wrangler dev` and `npm run token`.
 .dev.vars
 .wrangler/
 dist/
