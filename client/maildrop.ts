@@ -154,9 +154,12 @@ export function createMaildrop(config: MaildropConfig): MaildropClient {
     init?: RequestInit,
   ): Promise<any> {
     const token = await tokenFor(project);
-    const url = `${base}/api/v1/${project}/${path}`;
-    const sep = url.includes("?") ? "&" : "?";
-    const res = await doFetch(`${url}${sep}token=${encodeURIComponent(token)}`, init);
+    // Send the token as a Bearer header, not in the URL, so it isn't captured in
+    // request/observability logs.
+    const res = await doFetch(`${base}/api/v1/${project}/${path}`, {
+      ...init,
+      headers: { ...init?.headers, Authorization: `Bearer ${token}` },
+    });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       throw new Error(`maildrop: ${init?.method ?? "GET"} ${path} -> ${res.status} ${data?.error ?? ""}`.trim());

@@ -21,6 +21,15 @@ function splitMessage(message: StoredMessage): { meta: MessageMeta; body: BodyFi
   return { meta, body: { text, html, headers, attachmentList } };
 }
 
+/** Parse a stored JSON column defensively — a corrupt row is skipped, never a 500. */
+function safeParse<T>(value: string): T | null {
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return null;
+  }
+}
+
 export async function storeMessage(
   env: Env,
   project: string,
@@ -46,7 +55,9 @@ export async function listMessages(env: Env, project: string): Promise<MessageMe
   )
     .bind(project, Date.now(), LIST_LIMIT)
     .all<{ meta: string }>();
-  return (results ?? []).map((row) => JSON.parse(row.meta) as MessageMeta);
+  return (results ?? [])
+    .map((row) => safeParse<MessageMeta>(row.meta))
+    .filter((m): m is MessageMeta => m !== null);
 }
 
 export async function getMessage(
@@ -61,10 +72,10 @@ export async function getMessage(
     .bind(project, id, Date.now())
     .first<{ meta: string; body: string }>();
   if (!row) return null;
-  return {
-    ...(JSON.parse(row.meta) as MessageMeta),
-    ...(JSON.parse(row.body) as BodyFields),
-  };
+  const meta = safeParse<MessageMeta>(row.meta);
+  const body = safeParse<BodyFields>(row.body);
+  if (!meta || !body) return null;
+  return { ...meta, ...body };
 }
 
 export async function deleteMessage(env: Env, project: string, id: string): Promise<void> {

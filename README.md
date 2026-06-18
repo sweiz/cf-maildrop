@@ -111,9 +111,14 @@ test("sign-in OTP", async () => {
 
 - **`address(project, runId?)`** builds a unique recipient so parallel tests sharing a
   project don't read each other's mail; **`waitFor(project, { to })`** filters on it.
+- **Always scope with `{ to }`.** Anyone who can email `inbox+‹project›@yourdomain` can
+  drop a message into a bucket. Matching on the unique `to` address you generated (the
+  `runId` is unguessable) means an injected email can't be picked up — important if your
+  test then follows `extractLink`. Use non-obvious project names for anything sensitive.
 - **Auth:** pass `salt` (the Worker's `TOKEN_SALT`) to derive tokens for any project,
   or a precomputed `token` from `npm run token <project>` to keep the salt out of tests.
-  Inject either from a CI/test secret — never commit it.
+  Inject either from a CI/test secret — never commit it. The client sends the token as a
+  Bearer header (not in the URL), so it doesn't appear in request logs.
 - Other methods: `list`, `get`, `clear`, `remove`, `token`, plus `extractCode` /
   `extractLink`. `waitFor` also takes `since`, `subjectIncludes`, `match`, `timeoutMs`,
   `intervalMs`.

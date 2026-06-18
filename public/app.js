@@ -40,8 +40,12 @@ async function api(path, opts) {
   const project = els.project.value.trim().toLowerCase();
   const token = els.token.value.trim();
   const url = `/api/v1/${encodeURIComponent(project)}/${path}`;
-  const sep = url.includes("?") ? "&" : "?";
-  const res = await fetch(`${url}${sep}token=${encodeURIComponent(token)}`, opts);
+  // Send the token as a Bearer header (not in the URL) so it doesn't land in
+  // request logs / Referer.
+  const res = await fetch(url, {
+    ...opts,
+    headers: { ...(opts && opts.headers), Authorization: `Bearer ${token}` },
+  });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
   return data;
