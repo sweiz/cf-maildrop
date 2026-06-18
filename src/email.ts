@@ -1,4 +1,4 @@
-/** Email Worker handler: parse the inbound message and stash it in KV. */
+/** Email Worker handler: parse the inbound message and stash it in D1. */
 import PostalMime from "postal-mime";
 import type { Env, StoredMessage } from "./types";
 import { storeMessage } from "./storage";

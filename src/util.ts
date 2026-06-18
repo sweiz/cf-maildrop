@@ -37,7 +37,7 @@ export function extractCodes(text: string): string[] {
   return [...new Set(matches)].slice(0, 5);
 }
 
-/** Truncate a string to a byte-ish cap so a single value stays small in KV. */
+/** Truncate a string to a byte-ish cap so a single stored row stays small. */
 export function cap(value: string, maxChars: number): string {
   if (!value) return "";
   return value.length > maxChars ? value.slice(0, maxChars) + "\n…[truncated]" : value;

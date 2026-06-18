@@ -1,20 +1,20 @@
 /** Bindings and vars available to the Worker. Mirrors wrangler.jsonc. */
 export interface Env {
-  /** KV namespace holding stored messages, keyed `msg:<project>:<id>`. */
-  MAIL: KVNamespace;
+  /** D1 database holding stored messages (table `messages`, keyed by project + id). */
+  DB: D1Database;
   /** Static assets binding (the web GUI). Not used directly; assets auto-serve. */
   ASSETS: Fetcher;
   /** The mail domain, e.g. "mail.example.com". Shown in the GUI as example addresses. */
   MAIL_DOMAIN: string;
   /** The base local part of the single Email Routing rule, e.g. "inbox". Display only. */
   MAIL_PREFIX?: string;
-  /** How long messages live before KV auto-deletes them, in seconds (string var). */
+  /** How long messages live before they're pruned, in seconds (string var). */
   RETENTION_SECONDS?: string;
   /** Secret. HMAC key used to derive per-project access tokens. */
   TOKEN_SALT: string;
 }
 
-/** Lightweight metadata stored alongside each KV entry; returned by the list endpoint. */
+/** Lightweight metadata (the `meta` column); returned by the list endpoint. */
 export interface MessageMeta {
   id: string;
   from: string;
@@ -31,7 +31,7 @@ export interface MessageMeta {
   codes: string[];
 }
 
-/** Full stored message (KV value). */
+/** Full stored message (`meta` + `body` columns merged). */
 export interface StoredMessage extends MessageMeta {
   text: string;
   html: string;

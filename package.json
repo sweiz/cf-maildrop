@@ -1,13 +1,15 @@
 {
   "name": "cf-maildrop",
   "version": "1.0.0",
-  "description": "Disposable dev email inbox on Cloudflare: one Email Routing rule + subaddressing -> KV (auto-expiring) -> token-protected REST API + web GUI. Deploys locally via `wrangler login`. Stays inside the free tier.",
+  "description": "Disposable dev email inbox on Cloudflare: one Email Routing rule + subaddressing -> D1 (SQLite) -> token-protected REST API + web GUI. Deploys locally via `wrangler login`. Stays inside the free tier.",
   "type": "module",
   "private": true,
   "license": "MIT",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
+    "migrate:local": "wrangler d1 migrations apply cf-maildrop --local",
+    "migrate": "wrangler d1 migrations apply cf-maildrop --remote",
     "typecheck": "tsc --noEmit",
     "token": "node scripts/token.mjs"
   },

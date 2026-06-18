@@ -186,7 +186,7 @@ function renderMessage(m) {
 
 function setAuto(on) {
   clearInterval(autoTimer);
-  autoTimer = on ? setInterval(refresh, 5000) : null;
+  autoTimer = on ? setInterval(refresh, 3000) : null;
 }
 
 async function boot() {

@@ -1,48 +1,52 @@
-/** KV-backed storage. Keys: `msg:<project>:<id>`. Values auto-expire via TTL. */
+/**
+ * D1-backed storage. One `messages` table; expired rows are filtered on read and
+ * pruned by an hourly cron (see cleanupExpired + the scheduled handler in index.ts).
+ * Listing is an indexed, LIMITed SELECT so polling stays cheap (billed as rows read).
+ */
 import type { Env, MessageMeta, StoredMessage } from "./types";
 import { retentionSeconds } from "./util";
 
-const PREFIX = (project: string) => `msg:${project}:`;
+/** Newest N messages returned by the list endpoint (bounds rows read per poll). */
+const LIST_LIMIT = 200;
+
+interface BodyFields {
+  text: string;
+  html: string;
+  headers: Record<string, string>;
+  attachmentList: { filename: string; mimeType: string; size: number }[];
+}
+
+function splitMessage(message: StoredMessage): { meta: MessageMeta; body: BodyFields } {
+  const { text, html, headers, attachmentList, ...meta } = message;
+  return { meta, body: { text, html, headers, attachmentList } };
+}
 
 export async function storeMessage(
   env: Env,
   project: string,
   message: StoredMessage,
 ): Promise<void> {
-  const key = PREFIX(project) + message.id;
-  const meta: MessageMeta = {
-    id: message.id,
-    from: message.from,
-    to: message.to,
-    subject: message.subject,
-    receivedAt: message.receivedAt,
-    size: message.size,
-    hasText: message.hasText,
-    hasHtml: message.hasHtml,
-    attachments: message.attachments,
-    codes: message.codes,
-  };
-  await env.MAIL.put(key, JSON.stringify(message), {
-    expirationTtl: retentionSeconds(env.RETENTION_SECONDS),
-    metadata: meta,
-  });
+  const { meta, body } = splitMessage(message);
+  const expiresAt = Date.now() + retentionSeconds(env.RETENTION_SECONDS) * 1000;
+  await env.DB.prepare(
+    `INSERT OR REPLACE INTO messages (project, id, received_at, expires_at, meta, body)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6)`,
+  )
+    .bind(project, message.id, message.receivedAt, expiresAt, JSON.stringify(meta), JSON.stringify(body))
+    .run();
 }
 
-/** List message metadata for a project, newest first. */
+/** List message metadata for a project, newest first. Indexed; expired rows excluded. */
 export async function listMessages(env: Env, project: string): Promise<MessageMeta[]> {
-  const out: MessageMeta[] = [];
-  let cursor: string | undefined;
-  // Cap at a few pages so a runaway project can't blow the request budget.
-  for (let page = 0; page < 5; page++) {
-    const res = await env.MAIL.list<MessageMeta>({ prefix: PREFIX(project), cursor });
-    for (const k of res.keys) {
-      if (k.metadata) out.push(k.metadata);
-    }
-    if (res.list_complete) break;
-    cursor = res.cursor;
-  }
-  out.sort((a, b) => (a.receivedAt < b.receivedAt ? 1 : -1));
-  return out;
+  const { results } = await env.DB.prepare(
+    `SELECT meta FROM messages
+     WHERE project = ?1 AND expires_at > ?2
+     ORDER BY received_at DESC
+     LIMIT ?3`,
+  )
+    .bind(project, Date.now(), LIST_LIMIT)
+    .all<{ meta: string }>();
+  return (results ?? []).map((row) => JSON.parse(row.meta) as MessageMeta);
 }
 
 export async function getMessage(
@@ -50,23 +54,35 @@ export async function getMessage(
   project: string,
   id: string,
 ): Promise<StoredMessage | null> {
-  return env.MAIL.get<StoredMessage>(PREFIX(project) + id, "json");
+  const row = await env.DB.prepare(
+    `SELECT meta, body FROM messages
+     WHERE project = ?1 AND id = ?2 AND expires_at > ?3`,
+  )
+    .bind(project, id, Date.now())
+    .first<{ meta: string; body: string }>();
+  if (!row) return null;
+  return {
+    ...(JSON.parse(row.meta) as MessageMeta),
+    ...(JSON.parse(row.body) as BodyFields),
+  };
 }
 
 export async function deleteMessage(env: Env, project: string, id: string): Promise<void> {
-  await env.MAIL.delete(PREFIX(project) + id);
+  await env.DB.prepare(`DELETE FROM messages WHERE project = ?1 AND id = ?2`)
+    .bind(project, id)
+    .run();
 }
 
 /** Delete every message in a project. Returns the count removed. */
 export async function clearProject(env: Env, project: string): Promise<number> {
-  let removed = 0;
-  let cursor: string | undefined;
-  for (let page = 0; page < 5; page++) {
-    const res = await env.MAIL.list({ prefix: PREFIX(project), cursor });
-    await Promise.all(res.keys.map((k) => env.MAIL.delete(k.name)));
-    removed += res.keys.length;
-    if (res.list_complete) break;
-    cursor = res.cursor;
-  }
-  return removed;
+  const res = await env.DB.prepare(`DELETE FROM messages WHERE project = ?1`).bind(project).run();
+  return res.meta.changes ?? 0;
+}
+
+/** Delete expired rows. Called by the scheduled (cron) handler. Returns rows removed. */
+export async function cleanupExpired(env: Env): Promise<number> {
+  const res = await env.DB.prepare(`DELETE FROM messages WHERE expires_at < ?1`)
+    .bind(Date.now())
+    .run();
+  return res.meta.changes ?? 0;
 }

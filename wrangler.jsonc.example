@@ -15,10 +15,12 @@
     // unaffected by HTTP routing.
     "run_worker_first": ["/api/*"]
   },
-  "kv_namespaces": [
-    // FILL IN: id from `npx wrangler kv namespace create MAIL`
-    { "binding": "MAIL", "id": "REPLACE_WITH_YOUR_KV_NAMESPACE_ID" }
+  "d1_databases": [
+    // FILL IN: database_id from `npx wrangler d1 create cf-maildrop`
+    { "binding": "DB", "database_name": "cf-maildrop", "database_id": "REPLACE_WITH_YOUR_D1_DATABASE_ID" }
   ],
+  // Hourly cron prunes expired messages (D1 has no native TTL). See scheduled() in index.ts.
+  "triggers": { "crons": ["0 * * * *"] },
   "vars": {
     // FILL IN: your mail domain. MAIL_PREFIX is the base local part of your single
     // Email Routing rule (e.g. inbox@<MAIL_DOMAIN>). RETENTION_SECONDS is optional.

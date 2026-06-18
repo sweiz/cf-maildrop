@@ -25,22 +25,28 @@ Single Cloudflare Worker with two entrypoints:
 
 - `email(message, env)` — Cloudflare Email Routing delivers inbound mail here. The
   recipient local part is parsed for the project; the message is parsed with
-  `postal-mime` and stored in KV.
+  `postal-mime` and inserted into D1.
 - `fetch(request, env)` — serves the REST API. Configured with
   `assets.run_worker_first = ["/api/*"]` so the Worker runs only for API routes and
   the static GUI in `public/` is served directly by Workers Assets.
+- `scheduled(event, env)` — hourly Cron Trigger that prunes expired rows.
 
-### Storage: Cloudflare KV
+### Storage: Cloudflare D1 (revised 2026-06-17 — was KV)
 
-- Key: `msg:‹project›:‹id›`, where `id = <padded epoch ms>-<rand8>` (sortable).
-- Value: full message JSON (text, html, kept headers, attachment metadata).
-- List-relevant metadata is stored in the KV entry's `metadata`, so the list
-  endpoint is a single `list({prefix})` with no per-message reads.
-- **TTL via `expirationTtl`** → automatic expiry, no cron, no delete sweep.
+- Table `messages(project, id, received_at, expires_at, meta, body)`, PK `(project,
+  id)`; `id = <padded epoch ms>-<rand8>`. `meta`/`body` are JSON columns.
+- Index `(project, received_at DESC)` so `list` is an indexed, `LIMIT`ed `SELECT`
+  (verified via EXPLAIN QUERY PLAN — `SEARCH ... USING INDEX`, no table scan).
+- TTL: reads filter `expires_at > now`; an hourly cron `DELETE`s expired rows
+  (index `(expires_at)`). D1 has no native TTL.
 - Bodies capped at 256 KB each; attachment bytes are not stored.
 
-KV chosen over R2/D1 specifically for native per-key TTL (zero-maintenance expiry)
-and prefix listing, which map directly onto the two operations needed.
+**Why D1 over KV (the original choice):** KV's free tier allows only **1,000 list
+ops/day**, and both the GUI auto-refresh and the test client's `waitFor` poll the
+list endpoint — which exhausted the free tier in ~1 hour. D1 bills *rows read*
+(5M/day free) for an indexed `SELECT`, ~5,000× the headroom, and is strongly
+consistent (KV is eventual), so `waitFor` sees mail the instant it commits. The cost
+is a cron for TTL (KV's `expirationTtl` was free/automatic) — a worthwhile trade.
 
 ### Auth: deterministic HMAC tokens
 
@@ -53,7 +59,7 @@ and `src/token.ts` compute identically (Node `digest('base64url')` ↔ Web Crypt
 **Deploy (revised 2026-06-17):** deploy is local-only via `wrangler login` (OAuth) —
 no GitHub Actions, no Cloudflare API token, no CI secrets. `wrangler.jsonc.example`
 is committed; the user copies it to the gitignored `wrangler.jsonc` and fills in the
-KV namespace id + `MAIL_DOMAIN` (neither is secret, but keeping them gitignored
+D1 database_id + `MAIL_DOMAIN` (neither is secret, but keeping them gitignored
 avoids putting anything real in the public repo). `TOKEN_SALT` is the only secret:
 set on the Worker with `wrangler secret put`, and kept in the gitignored `.dev.vars`
 for `wrangler dev` + the token CLI. Nothing sensitive is committed.
@@ -64,7 +70,8 @@ for `wrangler dev` + the token CLI. Nothing sensitive is committed.
 | --------------------- | ----------------------------------------------- |
 | `src/index.ts`        | Worker entry: email + fetch routing             |
 | `src/email.ts`        | Parse inbound mail → `StoredMessage`            |
-| `src/storage.ts`      | KV put/list/get/delete/clear                    |
+| `src/storage.ts`      | D1 insert/list/get/delete/clear + cleanupExpired |
+| `migrations/*.sql`    | D1 schema (table + indexes)                     |
 | `src/api.ts`          | REST router + CORS + auth gate                  |
 | `src/token.ts`        | HMAC token compute/verify                       |
 | `src/util.ts`         | Address parsing, validation, code extraction    |
@@ -80,8 +87,8 @@ for `wrangler dev` + the token CLI. Nothing sensitive is committed.
 ## Error handling
 
 400 invalid/missing project, 401 invalid token, 404 unknown route/message.
-Non-matching recipients are accepted and dropped (no bounces). List/clear cap at 5
-KV pages to bound request cost.
+Non-matching recipients are accepted and dropped (no bounces). The list endpoint
+returns the newest 200 rows (`LIMIT`) to bound rows read per request.
 
 ## Out of scope (v1)
 

@@ -14,11 +14,11 @@ safe to make **public** — you deploy from your own machine with `wrangler logi
 Great for grabbing OTPs / magic links in end-to-end tests without a real mailbox.
 
 ```
-  inbox+acme-run42@   ┌──────────────────────┐   put (TTL 24h)   ┌──────────┐
-  ────────────────▶   │  Cloudflare Email     │ ────────────────▶ │   KV     │
-  (one rule:          │  Routing → Worker     │                   │ msg:proj │
-   inbox@yourdomain   │  (email handler)      │ ◀──────────────── │  :id     │
-   + subaddressing)   │  (fetch handler)      │   list / get       └──────────┘
+  inbox+acme-run42@   ┌──────────────────────┐   INSERT          ┌──────────┐
+  ────────────────▶   │  Cloudflare Email     │ ────────────────▶ │ D1 (SQL) │
+  (one rule:          │  Routing → Worker     │                   │ messages │
+   inbox@yourdomain   │  (email handler)      │ ◀──────────────── │  table   │
+   + subaddressing)   │  (fetch handler)      │   SELECT (indexed) └──────────┘
                       └──────────┬───────────┘
                                  │  GET /api/v1/‹project›/list?token=…
                                  ▼
@@ -129,10 +129,10 @@ test("sign-in OTP", async () => {
 - **Enable subaddressing**: Email Routing → **Settings** → turn on *Subaddressing*
   (so `inbox+anything@` is matched by the `inbox@` rule and the `+detail` reaches
   the Worker).
-- Create the KV namespace and note its id:
+- Create the D1 database and note its id:
 
   ```bash
-  npx wrangler kv namespace create MAIL
+  npx wrangler d1 create cf-maildrop
   ```
 
 No API token is needed — you'll authenticate with `wrangler login` (OAuth) in step 3.
@@ -141,7 +141,7 @@ No API token is needed — you'll authenticate with `wrangler login` (OAuth) in 
 
 ```bash
 npm install
-cp wrangler.jsonc.example wrangler.jsonc   # then edit: set the KV namespace id + MAIL_DOMAIN
+cp wrangler.jsonc.example wrangler.jsonc   # then edit: set the D1 database_id + MAIL_DOMAIN
 cp .dev.vars.example .dev.vars             # then edit: set TOKEN_SALT (openssl rand -hex 32)
 ```
 
@@ -153,7 +153,8 @@ routing rule (default `inbox`).
 
 ```bash
 npx wrangler login                  # one-time browser OAuth
-npm run deploy                      # wrangler deploy
+npm run migrate                     # create the `messages` table on the remote D1
+npm run deploy                      # wrangler deploy (also registers the hourly cron)
 npx wrangler secret put TOKEN_SALT  # one-time: paste the SAME salt as in .dev.vars
 ```
 
@@ -183,27 +184,35 @@ curl "https://cf-maildrop.<your-subdomain>.workers.dev/api/v1/acme/list?token=$T
 ## Local development
 
 ```bash
-npm run dev    # wrangler dev (reads wrangler.jsonc + TOKEN_SALT from .dev.vars)
+npm run migrate:local    # create the `messages` table in the local D1 (once)
+npm run dev              # wrangler dev (reads wrangler.jsonc + TOKEN_SALT from .dev.vars)
 ```
 
 `wrangler dev` won't receive real email, but you can exercise the API/GUI by
-seeding KV directly, e.g.:
+seeding the local D1 directly, e.g.:
 
 ```bash
-npx wrangler kv key put --binding MAIL "msg:acme:000-test" \
-  '{"id":"000-test","from":"a@b.com","to":"inbox+acme-run42@x","subject":"hi","receivedAt":"2026-01-01T00:00:00Z","size":1,"hasText":true,"hasHtml":false,"attachments":0,"codes":["123456"],"text":"code 123456","html":"","headers":{},"attachmentList":[]}'
+npx wrangler d1 execute cf-maildrop --local --command \
+  "INSERT INTO messages (project,id,received_at,expires_at,meta,body) VALUES (
+     'acme','000-test','2026-01-01T00:00:00Z', strftime('%s','now','+1 day')*1000,
+     json('{\"id\":\"000-test\",\"from\":\"a@b.com\",\"to\":\"inbox+acme-run42@x\",\"subject\":\"hi\",\"receivedAt\":\"2026-01-01T00:00:00Z\",\"size\":1,\"hasText\":true,\"hasHtml\":false,\"attachments\":0,\"codes\":[\"123456\"]}'),
+     json('{\"text\":\"code 123456\",\"html\":\"\",\"headers\":{},\"attachmentList\":[]}') )"
 ```
 
 Other scripts: `npm run typecheck`, `npm run deploy` (deploy from your machine).
 
 ## Free-tier notes
 
-- **KV** auto-expires messages via `expirationTtl`, so there's **no cron** and no
-  delete sweep. Free limits (~1k writes/day, 100k reads/day, 1 GB) are far above
-  what a dev mailbox needs.
+- **Storage is D1 (SQLite).** Listing/refresh is an **indexed `SELECT`**, billed as
+  *rows read* — the free tier allows **5,000,000 rows read/day** and **100,000 rows
+  written/day**, so even a 1–2 s GUI refresh or busy test suite sits at single-digit
+  percent of the budget. (This replaced KV, whose **1,000 list ops/day** limit made
+  polling exhaust the free tier in about an hour.)
+- **TTL:** D1 has no native expiry, so reads filter `expires_at > now` and an **hourly
+  Cron Trigger** (`scheduled()` in `index.ts`) prunes expired rows. Crons are free.
 - **Workers** free tier is 100k requests/day; the GUI is served as static assets.
-- Bodies are capped at 256 KB each and attachment bytes aren't stored, keeping
-  every KV value tiny (well under the 25 MB value limit).
+- Bodies are capped at 256 KB each and attachment bytes aren't stored, keeping rows
+  small (and the list query only reads the `meta` column it returns).
 
 ## Security model
 
